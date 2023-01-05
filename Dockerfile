@@ -151,6 +151,7 @@ RUN pip install mediapipe nvidia-ml-py3 vidgear[asyncio] seaborn
 RUN pip install pyyaml coloredlogs python-dotenv singleton_decorator
 RUN pip install aiohttp requests redis
 RUN pip install pafy youtube_dl yt_dlp vidgear
+RUN apt-get install --no-install-recommends -y python-is-python3
 
 # Cleanup
 RUN rm -rf /opt/opencv /opt/opencv_contrib
@@ -158,6 +159,6 @@ RUN rm -rf /opt/opencv /opt/opencv_contrib
 # Print version info
 RUN ffmpeg -version && \
     gst-launch-1.0 --gst-version && \
-    python3 -c "import cv2; print(cv2.getBuildInformation())" && \
-    python3 -c "import cv2; print('cv2: ' + cv2.__version__)" && \
-    python3 -c "import torch; print('torch: ' + torch.__version__)"
+    python -c "import cv2; print(cv2.getBuildInformation())" && \
+    python -c "import cv2; print('cv2: ' + cv2.__version__)" && \
+    python -c "import torch; print('torch: ' + torch.__version__)"
