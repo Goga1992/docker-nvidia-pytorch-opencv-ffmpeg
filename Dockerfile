@@ -18,7 +18,9 @@ ENV TZ=US/Mountain
 
 RUN apt-get update -qq --fix-missing && \
     apt-get install -y --no-install-recommends software-properties-common && \
-    apt-get install -y python${PYTHON_VERSION} python3-pip python3-dev python3-numpy
+    apt-get install -y python${PYTHON_VERSION} python3-pip python3-dev
+
+RUN pip3 install numpy
 
 ENV PYTHONPATH="/usr/lib/python${PYTHON_VERSION}/site-packages:/usr/local/lib/python${PYTHON_VERSION}/site-packages"
 
