@@ -1,6 +1,6 @@
-FROM nvcr.io/nvidia/pytorch:22.12-py3
+FROM nvidia/cuda:11.3.0-cudnn8-devel-ubuntu20.04
 
-ARG CUDA_VERSION=11.4.0
+ARG CUDA_VERSION=11.3.0
 
 LABEL maintainer="https://github.com/visionify"
 
@@ -18,7 +18,7 @@ ENV TZ=US/Mountain
 
 RUN apt-get update -qq --fix-missing && \
     apt-get install -y --no-install-recommends software-properties-common && \
-    apt-get install -y python3-pip
+    apt-get install -y python${PYTHON_VERSION} python3-pip python3-dev python3-numpy
 
 ENV PYTHONPATH="/usr/lib/python${PYTHON_VERSION}/site-packages:/usr/local/lib/python${PYTHON_VERSION}/site-packages"
 
@@ -70,7 +70,9 @@ RUN apt-get -y update -qq --fix-missing && \
         zlib1g-dev \
         libsm6 \
         libxext6 \
-        libxrender1
+        libxrender1 \
+        wget \
+        vim
 
 # Install gstreamer
 RUN apt-get install --no-install-recommends -y \
@@ -79,7 +81,6 @@ RUN apt-get install --no-install-recommends -y \
     gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools \
     gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 \
     gstreamer1.0-qt5 gstreamer1.0-pulseaudio
-
 
 # Install OpenCV
 WORKDIR /opt
@@ -103,8 +104,8 @@ RUN mkdir /opt/opencv/build && \
       -D BUILD_TESTS=OFF \
       -D CMAKE_INSTALL_PREFIX=/usr/local \
       -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
-      -D BUILD_opencv_python3=$( [ ${PYTHON_VERSION%%.*} -ge 3 ] && echo "ON" || echo "OFF" ) \
-      -D BUILD_opencv_python2=$( [ ${PYTHON_VERSION%%.*} -lt 3 ] && echo "ON" || echo "OFF" ) \
+      -D BUILD_opencv_python3="ON" \
+      -D BUILD_opencv_python2="OFF" \
       -D PYTHON${PYTHON_VERSION%%.*}_EXECUTABLE=$(which python${PYTHON_VERSION}) \
       -D PYTHON_DEFAULT_EXECUTABLE=$(which python${PYTHON_VERSION}) \
       -D BUILD_EXAMPLES=OFF \
@@ -114,10 +115,11 @@ RUN mkdir /opt/opencv/build && \
       -D WITH_V4L=ON \
       -D WITH_LIBV4L=ON \
       -D WITH_TBB=ON \
-      -D WITH_QT=ON \
+      -D WITH_QT=OFF \
       -D WITH_OPENGL=ON \
       -D WITH_CUDA=ON \
       -D WITH_LAPACK=ON \
+      -D WITH_CUDNN=ON \
       #-D WITH_HPX=ON \
       -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -D CMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs \
@@ -127,8 +129,10 @@ RUN mkdir /opt/opencv/build && \
       -D CUDA_ARCH_PTX="" \
       -D WITH_CUBLAS=ON \
       -D WITH_NVCUVID=ON \
-      -D ENABLE_FAST_MATH=1 \
-      -D CUDA_FAST_MATH=1 \
+      -D ENABLE_FAST_MATH=ON \
+      -D CUDA_FAST_MATH=ON \
+      -D OPENCV_DNN_CUDA=ON \
+      -D WITH_OPENMP=ON \
       -D ENABLE_PRECOMPILED_HEADERS=OFF \
       ..
 
@@ -138,21 +142,22 @@ RUN cd /opt/opencv/build && \
     make install && \
     ldconfig
 
-# Reinstall torch.
-RUN pip install --upgrade pip
+# Install torch.
 RUN pip uninstall -y torch torchvision torchaudio
 RUN pip install torch torchvision torchaudio
 
 # Install python requirements
-RUN pip install opencv-python
 RUN pip install mediapipe nvidia-ml-py3 vidgear[asyncio] seaborn
 RUN pip install pyyaml coloredlogs python-dotenv singleton_decorator
 RUN pip install aiohttp requests redis
-RUN pip install pafy youtube_dl
+RUN pip install pafy youtube_dl yt_dlp vidgear
 
-# cleaup
+# Cleanup
+RUN rm -rf /opt/opencv /opt/opencv_contrib
+
+# Print version info
 RUN ffmpeg -version && \
     gst-launch-1.0 --gst-version && \
-    python -c "import cv2; print(cv2.getBuildInformation())" && \
-    python -c "import cv2; print('cv2: ' + cv2.__version__)" && \
-    python -c "import torch; print('torch: ' + torch.__version__)"
+    python3 -c "import cv2; print(cv2.getBuildInformation())" && \
+    python3 -c "import cv2; print('cv2: ' + cv2.__version__)" && \
+    python3 -c "import torch; print('torch: ' + torch.__version__)"
