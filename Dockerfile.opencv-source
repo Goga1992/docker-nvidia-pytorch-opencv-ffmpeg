@@ -5,6 +5,7 @@ ARG CUDA_VERSION=11.3.0
 LABEL maintainer="https://github.com/visionify"
 
 ARG PYTHON_VERSION=3.8
+ARG OPENCV_VERSION=4.6.0
 
 # Needed for string substitution
 SHELL ["/bin/bash", "-c"]
@@ -18,6 +19,8 @@ ENV TZ=US/Mountain
 RUN apt-get update -qq --fix-missing && \
     apt-get install -y --no-install-recommends software-properties-common && \
     apt-get install -y python${PYTHON_VERSION} python3-pip python3-dev
+
+RUN pip3 install numpy
 
 ENV PYTHONPATH="/usr/lib/python${PYTHON_VERSION}/site-packages:/usr/local/lib/python${PYTHON_VERSION}/site-packages"
 
@@ -71,8 +74,7 @@ RUN apt-get -y update -qq --fix-missing && \
         libxext6 \
         libxrender1 \
         wget \
-        vim \
-        python-is-python3
+        vim
 
 # Install gstreamer
 RUN apt-get install --no-install-recommends -y \
@@ -83,9 +85,67 @@ RUN apt-get install --no-install-recommends -y \
     gstreamer1.0-qt5 gstreamer1.0-pulseaudio
 
 # Install OpenCV
-RUN pip install numpy opencv-python opencv-contrib-python
+WORKDIR /opt
+RUN wget https://github.com/opencv/opencv/archive/$OPENCV_VERSION.zip -O opencv.zip --progress=bar:force:noscroll && \
+    unzip -q opencv.zip && \
+    mv /opt/opencv-$OPENCV_VERSION /opt/opencv && \
+    rm /opt/opencv.zip && \
+    wget https://github.com/opencv/opencv_contrib/archive/$OPENCV_VERSION.zip -O opencv_contrib.zip --progress=bar:force:noscroll && \
+    unzip -q opencv_contrib.zip && \
+    mv /opt/opencv_contrib-$OPENCV_VERSION /opt/opencv_contrib && \
+    rm opencv_contrib.zip
+
+# Prepare build
+RUN mkdir /opt/opencv/build && \
+    cd /opt/opencv/build && \
+    cmake \
+      -D CMAKE_BUILD_TYPE=RELEASE \
+      -D BUILD_PYTHON_SUPPORT=ON \
+      -D BUILD_DOCS=ON \
+      -D BUILD_PERF_TESTS=OFF \
+      -D BUILD_TESTS=OFF \
+      -D CMAKE_INSTALL_PREFIX=/usr/local \
+      -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
+      -D BUILD_opencv_python3="ON" \
+      -D BUILD_opencv_python2="OFF" \
+      -D PYTHON${PYTHON_VERSION%%.*}_EXECUTABLE=$(which python${PYTHON_VERSION}) \
+      -D PYTHON_DEFAULT_EXECUTABLE=$(which python${PYTHON_VERSION}) \
+      -D BUILD_EXAMPLES=OFF \
+      -D WITH_IPP=OFF \
+      -D WITH_FFMPEG=ON \
+      -D WITH_GSTREAMER=ON \
+      -D WITH_V4L=ON \
+      -D WITH_LIBV4L=ON \
+      -D WITH_TBB=ON \
+      -D WITH_QT=OFF \
+      -D WITH_OPENGL=ON \
+      -D WITH_CUDA=ON \
+      -D WITH_LAPACK=ON \
+      -D WITH_CUDNN=ON \
+      #-D WITH_HPX=ON \
+      -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
+      -D CMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs \
+      # https://kezunlin.me/post/6580691f
+      # https://stackoverflow.com/questions/28010399/build-opencv-with-cuda-support
+      -D CUDA_ARCH_BIN="5.3 6.1 7.0 7.5" \
+      -D CUDA_ARCH_PTX="" \
+      -D WITH_CUBLAS=ON \
+      -D WITH_NVCUVID=ON \
+      -D ENABLE_FAST_MATH=ON \
+      -D CUDA_FAST_MATH=ON \
+      -D OPENCV_DNN_CUDA=ON \
+      -D WITH_OPENMP=ON \
+      -D ENABLE_PRECOMPILED_HEADERS=OFF \
+      ..
+
+# Build, Test and Install
+RUN cd /opt/opencv/build && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
 
 # Install torch.
+RUN pip uninstall -y torch torchvision torchaudio
 RUN pip install torch torchvision torchaudio
 
 # Install python requirements
@@ -97,6 +157,9 @@ RUN pip install pafy youtube_dl yt_dlp vidgear
 # Install missing apt packages
 RUN apt-get install --no-install-recommends -y \
     python-is-python3 git
+
+# Cleanup
+RUN rm -rf /opt/opencv /opt/opencv_contrib
 
 # Print version info
 RUN ffmpeg -version && \
