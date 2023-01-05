@@ -1,4 +1,4 @@
-# Edge Inference Engine
+# Docker image with CUDA, CuDNN, PyTorch, OpenCV + FFMPEG support
 
 Docker Image for NVIDIA CUDA accelerated machine learning use-cases. This container supports PyTorch, OpenCV, FFMPEG, GStreamer with CUDA 11.
 
